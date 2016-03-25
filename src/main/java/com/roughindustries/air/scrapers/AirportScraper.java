@@ -20,7 +20,7 @@ import com.roughindustries.air.resources.GlobalProperties;
  * @author roughindustries
  *
  */
-public class AirportScraper {
+public class AirportScraper{
 
 	/**
 	 * 
@@ -30,14 +30,13 @@ public class AirportScraper {
 	/**
 	 * 
 	 */
-	GlobalProperties Props;
-
+	GlobalProperties Props = GlobalProperties.getInstance();
+	
 	/**
 	 * @return
 	 * @throws IOException
 	 */
 	public Document getAirportListPage() throws IOException {
-		Props = GlobalProperties.getInstance();
 		return Jsoup.connect(Props.getAirportPage()).get();
 	}
 
@@ -93,7 +92,7 @@ public class AirportScraper {
 	 */
 	public Airports parseAirportPageForAirportInfo(Airports ai) throws IOException {
 		try {
-			Document page = Jsoup.connect("https://en.wikipedia.org" + ai.getWikiUrl()).get();
+			Document page = Jsoup.parse("https://en.wikipedia.org" + ai.getWikiUrl());
 			if (ai.getIataCode() == null || "".equals(ai.getIataCode())) {
 				Elements iata_code = page
 						.select("[href*=/wiki/International_Air_Transport_Association_airport_code] + b");
@@ -117,6 +116,17 @@ public class AirportScraper {
 					ai.setIcaoCode(icao_code.text().replaceAll("\\P{L}", " "));
 				}
 				icao_code = null;
+			}
+			//Get Lat and Long
+			//Elements summaryTable = page.select("table[class*=infobox vcard]");
+			Elements coordinates = page.select("[href*=/tools.wmflabs.org/geohack/]");
+			if(coordinates.attr("href") != null && !"".equals(coordinates.attr("href"))){
+				GeoHackScraper geoScrape = new GeoHackScraper();
+				Elements latLong = geoScrape.parseGeoHackPageForLatLong("https:"+coordinates.attr("href"));
+				ai.setLatitude(Double.parseDouble(latLong.select("[class*=latitude]").text()));
+				ai.setLongitude(Double.parseDouble(latLong.select("[class*=longitude]").text()));
+			} else {
+				logger.debug( ai.getIataCode() + " " + ai.getName() + " has no coordiantes");
 			}
 			page = null;
 			logger.debug(ai.getIataCode() + " " + ai.getName() + " Airport Page Processed");
