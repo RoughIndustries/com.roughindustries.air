@@ -1,0 +1,19 @@
+<!DOCTYPE configuration
+  PUBLIC "-//mybatis.org//DTD Config 3.0//EN"
+  "http://mybatis.org/dtd/mybatis-3-config.dtd">
+<configuration>
+	<environments default="development">
+		<environment id="development">
+			<transactionManager type="JDBC" />
+			<dataSource type="POOLED">
+				<property name="driver" value="org.postgresql.Driver" />
+				<property name="url" value="jdbc:postgresql://localhost:5432/air" />
+				<property name="username" value="postgres" />
+				<property name="password" value="Squarecheeze@1!" />
+			</dataSource>
+		</environment>
+	</environments>
+	<mappers>
+		<mapper resource="com/roughindustries/air/sql/AirportsMapper.xml" />
+	</mappers>
+</configuration>

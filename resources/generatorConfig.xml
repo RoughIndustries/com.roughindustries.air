@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE generatorConfiguration PUBLIC "-//mybatis.org//DTD MyBatis Generator Configuration 1.0//EN" "http://mybatis.org/dtd/mybatis-generator-config_1_0.dtd" >
+<generatorConfiguration>
+	<properties resource="mybatisGenProps.properties"></properties>
+	<classPathEntry
+		location="${MAVEN_HOME_PROP}/postgresql/postgresql/9.1-901-1.jdbc4/postgresql-9.1-901-1.jdbc4.jar" />
+
+	<context id="context1">
+		<jdbcConnection driverClass="org.postgresql.Driver"
+			connectionURL="jdbc:postgresql://localhost:5432/air" userId="postgres"
+			password="Squarecheeze@1!" />
+		<javaModelGenerator targetPackage="com.roughindustries.air.model"
+			targetProject="air" />
+		<sqlMapGenerator targetPackage="com.roughindustries.air.sql"
+			targetProject="air" />
+		<javaClientGenerator targetPackage="com.roughindustries.air.client"
+			targetProject="air" type="XMLMAPPER" />
+		<table schema="public" tableName="airports">
+			<ignoreColumn column="internal_airport_id"/>
+		</table>
+	</context>
+</generatorConfiguration>
