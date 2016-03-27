@@ -15,5 +15,7 @@
 	</environments>
 	<mappers>
 		<mapper resource="com/roughindustries/air/sql/AirportsMapper.xml" />
+		<mapper resource="com/roughindustries/air/sql/AirlinesMapper.xml" />
+		<mapper resource="com/roughindustries/air/sql/Airport2airlineMapper.xml" />
 	</mappers>
 </configuration>

@@ -7,7 +7,10 @@ import org.apache.ibatis.session.SqlSession;
 import org.apache.log4j.Logger;
 import org.jsoup.select.Elements;
 
+import com.roughindustries.air.client.AirlinesMapper;
 import com.roughindustries.air.client.AirportsMapper;
+import com.roughindustries.air.model.Airlines;
+import com.roughindustries.air.model.AirlinesExample;
 import com.roughindustries.air.model.Airports;
 import com.roughindustries.air.model.AirportsExample;
 import com.roughindustries.air.resources.GlobalProperties;
@@ -30,7 +33,7 @@ public class App implements Runnable {
 	 */
 	static GlobalProperties Props = GlobalProperties.getInstance();
 
-	List<Airports> al = null;
+	static List<Airports> al = null;
 
 	public static void main(String[] args) {
 		App app = new App();
@@ -41,24 +44,44 @@ public class App implements Runnable {
 
 	}
 
-	public void updateAirport(int recordNumber, Airports ai) {
+	public synchronized void updateAirport(int recordNumber, Airports ai) {
 		SqlSession ses = null;
 		try {
-			al.set(recordNumber, ai);
 			ses = Props.getSqlSessionFactory().openSession();
 			AirportsMapper mapper = ses.getMapper(AirportsMapper.class);
 			AirportsExample example = new AirportsExample();
 			example.createCriteria().andIataCodeEqualTo(ai.getIataCode());
 			int updates = mapper.updateByExample(ai, example);
 			if (updates < 1) {
-				ses.insert("insert", ai);
+				ses.insert("com.roughindustries.air.client.AirportsMapper.insertSelective", ai);
 			}
 			ses.commit();
 		} finally {
-			ses.close();
-			ses = null;
+			if (ses != null) {
+				ses.close();
+				ses = null;
+			}
 		}
-		
+	}
+	
+	public synchronized void updateAirline(int recordNumber, Airlines al) {
+		SqlSession ses = null;
+		try {
+			ses = Props.getSqlSessionFactory().openSession();
+			AirlinesMapper mapper = ses.getMapper(AirlinesMapper.class);
+			AirlinesExample example = new AirlinesExample();
+			example.createCriteria().andIataCodeEqualTo(al.getIataCode());
+			int updates = mapper.updateByExample(al, example);
+			if (updates < 1) {
+				ses.insert("com.roughindustries.air.client.AirlinesMapper.insertSelective", al);
+			}
+			ses.commit();
+		} finally {
+			if (ses != null) {
+				ses.close();
+				ses = null;
+			}
+		}
 	}
 
 	@Override
@@ -67,20 +90,19 @@ public class App implements Runnable {
 			logger.debug(Props.getAirportPage());
 			AirportScraper as = new AirportScraper();
 			Elements airports = as.parseIATAAlphaGroups(as.getIATAAlphaGroups(as.getAirportListPage()));
-			List<Airports> al = as.parseAirportsElementList(airports);
-			for (int i = 0; i < al.size(); i++) {
-			//for (int i = 0; i < 2; i++) {
+			al = as.parseAirportsElementList(airports);
+			//for (int i = 0; i < al.size(); i++) {
+			for (int i = 0; i < 5; i++) {
 				Airports airport = al.get(i);
-				AirportPageForAirportInfoParser apfaip = new AirportPageForAirportInfoParser(this, i, airport);
-				apfaip.run();
+				(new Thread(new AirportPageForAirportInfoParser(this, i, airport))).start();
 			}
 
 		} catch (IOException e) {
 			e.printStackTrace();
-		} 
+		}
 		while (true) {
 			try {
-				Thread.sleep(10);
+				Thread.sleep(1);
 			} catch (InterruptedException e) {
 				e.printStackTrace();
 			}

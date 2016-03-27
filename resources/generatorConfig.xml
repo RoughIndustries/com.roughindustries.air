@@ -16,7 +16,11 @@
 		<javaClientGenerator targetPackage="com.roughindustries.air.client"
 			targetProject="air" type="XMLMAPPER" />
 		<table schema="public" tableName="airports">
-			<ignoreColumn column="internal_airport_id"/>
+			<ignoreColumn column="internal_airport_id" />
 		</table>
+		<table schema="public" tableName="airlines">
+			<ignoreColumn column="internal_airline_id" />
+		</table>
+		<table schema="public" tableName="airport2airline" />
 	</context>
 </generatorConfiguration>
