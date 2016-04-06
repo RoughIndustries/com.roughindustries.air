@@ -16,11 +16,14 @@
 		<javaClientGenerator targetPackage="com.roughindustries.air.client"
 			targetProject="air" type="XMLMAPPER" />
 		<table schema="public" tableName="airports">
-			<ignoreColumn column="internal_airport_id" />
+			<generatedKey column="internal_airport_id" sqlStatement="JDBC" />
 		</table>
 		<table schema="public" tableName="airlines">
-			<ignoreColumn column="internal_airline_id" />
+			<generatedKey column="internal_airline_id" sqlStatement="JDBC" />
 		</table>
 		<table schema="public" tableName="airport2airline" />
+		<table schema="public" tableName="locations_served">
+			<generatedKey column="internal_location_served_id" sqlStatement="JDBC" />
+		</table>
 	</context>
 </generatorConfiguration>

@@ -1,5 +1,7 @@
 package com.roughindustries.air.scrapers;
 
+import java.net.URL;
+
 import org.apache.log4j.Logger;
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
@@ -30,11 +32,10 @@ public class GeoHackScraper{
 		Elements geo = null;
 		while (!quit) {
 			try {
-				Document page = Jsoup.connect(geoHackURL).get();
+				Document page = Jsoup.parse(new URL(geoHackURL), 30000);
+				geo = page.select("span[class*=geo] > span");
 				//got the page so we can quit
 				quit = true;
-				geo = page.select("span[class*=geo] > span");
-				
 				page = null;
 			} catch (Exception e) {
 				attempts++;

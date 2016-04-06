@@ -117,7 +117,7 @@ public class GlobalProperties {
 	/**
 	 * @return the sqlSession
 	 */
-	public SqlSessionFactory getSqlSessionFactory() {
+	public synchronized SqlSessionFactory getSqlSessionFactory() {
 		return sqlSessionFactory;
 	}
 

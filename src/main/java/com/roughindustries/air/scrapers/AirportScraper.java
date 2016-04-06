@@ -78,7 +78,15 @@ public class AirportScraper{
 				ia.setIataCode(td_list.get(0).text().replaceAll("\\P{L}", " "));
 				ia.setIcaoCode(td_list.get(1).text().replaceAll("\\P{L}", " "));
 				ia.setName(td_list.get(2).getElementsByAttribute("href").text().replaceAll("\\P{L}", " "));
-				ia.setWikiUrl(td_list.get(2).getElementsByAttribute("href").attr("href"));
+				if (td_list.get(2).getElementsByAttributeValueContaining("href", "redlink").isEmpty()) {
+					if (!td_list.get(2).getElementsByAttributeValueContaining("href", "/wiki/").isEmpty()) {
+						ia.setWikiUrl(td_list.get(2).getElementsByAttribute("href").attr("href"));
+					} else {
+						logger.debug("Parsing Exception: Bad wiki link for "+ia.getIataCode());
+					}
+				} else {
+					logger.debug("Parsing Exception: RedLine wiki link for "+ia.getIataCode());
+				}
 				al.add(ia);
 				logger.debug(ia.getIataCode() + " " + ia.getIcaoCode() + " " + ia.getName() + " " + ia.getWikiUrl());
 			}

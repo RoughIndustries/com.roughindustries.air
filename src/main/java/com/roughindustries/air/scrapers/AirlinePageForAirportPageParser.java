@@ -5,6 +5,7 @@ import java.net.URL;
 import org.apache.log4j.Logger;
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
+import org.jsoup.nodes.Element;
 import org.jsoup.select.Elements;
 
 import com.roughindustries.air.App;
@@ -44,12 +45,12 @@ public class AirlinePageForAirportPageParser implements Runnable{
 			try {
 				Document page = Jsoup.parse(new URL("https://en.wikipedia.org" + al.getWikiUrl()), 10000);
 				if (al.getIataCode() == null || "".equals(al.getIataCode())) {
-					Elements iata_code = page
+					Elements iata_label = page
 							.select("[href*=/wiki/IATA_airline_designator]");
-					if (iata_code != null & !iata_code.isEmpty()) {
+					Element iata_code = iata_label.parents().select("tr").get(1).select("td").get(0);
+					if (iata_code != null) {
 						al.setIataCode(iata_code.text().replaceAll("\\P{L}", " "));
 					}
-					iata_code = null;
 				}
 				
 				quit = true;
@@ -70,7 +71,7 @@ public class AirlinePageForAirportPageParser implements Runnable{
 			}
 		}
 		root.updateAirline(recordNumber, al);
-		caller.airlineUpdateDone();
+		//caller.airlineUpdateDone();
 	}
 	
 	
