@@ -2,7 +2,9 @@ package com.roughindustries.air.scrapers;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Calendar;
 import java.util.Comparator;
+import java.util.Date;
 import java.util.List;
 
 import org.apache.ibatis.session.SqlSession;
@@ -26,6 +28,9 @@ import com.roughindustries.air.resources.GlobalProperties;
  */
 public class GeonamesWScraper{
 
+	private static long HourStartTime = 0;
+	private static int currentHourCount = 0;
+	
 	/**
 	 * 
 	 */
@@ -36,6 +41,23 @@ public class GeonamesWScraper{
 	 */
 	GlobalProperties Props = GlobalProperties.getInstance();
 
+	public static synchronized void addOneToCount(){
+		if(HourStartTime == 0){
+			HourStartTime = new Date().getTime();
+		}
+		Date current = new Date();
+		Calendar cal = Calendar.getInstance();
+		cal.setTimeInMillis(HourStartTime);
+		cal.add(Calendar.HOUR, 1);
+		Date oneHourAhead = cal.getTime();
+		if(oneHourAhead.getTime() < current.getTime()){
+			currentHourCount = 0;
+			HourStartTime = new Date().getTime();
+		} else {
+			currentHourCount++;
+		}
+	}
+	
 	public boolean updateLocationsServed(Double Lat, Double Long, double radius) {
 		boolean results = false;
 		try {
@@ -43,13 +65,17 @@ public class GeonamesWScraper{
 			List<Toponym> searchResult;
 			searchResult = WebService.findNearby(Lat.doubleValue(), Long.doubleValue(), radius, FeatureClass.P,
 					new String[] { "PPLC" }, "en", 3);
+			GeonamesWScraper.addOneToCount();
 			searchResult.addAll(WebService.findNearby(Lat.doubleValue(), Long.doubleValue(), radius, FeatureClass.P,
 					new String[] { "PPLA" }, "en", 10));
+			GeonamesWScraper.addOneToCount();
 			searchResult.addAll(WebService.findNearby(Lat.doubleValue(), Long.doubleValue(), radius, FeatureClass.P,
 					new String[] { "PPLA2" }, "en", 10));
+			GeonamesWScraper.addOneToCount();
 			List<Toponym> completeSearchResults = new ArrayList<Toponym>();
 			for (Toponym topo_item : searchResult) {
 				Toponym toponym = WebService.get(topo_item.getGeoNameId(), "en", Style.LONG.name());
+				GeonamesWScraper.addOneToCount();
 				completeSearchResults.add(toponym);
 				logger.debug(topo_item.toString());
 
@@ -82,12 +108,12 @@ public class GeonamesWScraper{
 				loc.setName(topo_item.getName());
 				loc.setLatitude(topo_item.getLatitude());
 				loc.setLongitude(topo_item.getLongitude());
-				loc = updateLocationsServed(loc);
+				//loc = updateLocationsServed(loc);
 				logger.debug(topo_item.toString());
 			}
 			results = true;
 		} catch (GeoNamesException e) {
-			logger.error("Geonames limit probably exceeded!");
+			logger.error("Geonames limit probably exceeded! Possible count is "+GeonamesWScraper.getCurrentHourCount());
 		} catch (IOException e) {
 			e.printStackTrace();
 		} catch (Exception e) {
@@ -127,5 +153,21 @@ public class GeonamesWScraper{
 			}
 		}
 		return result;
+	}
+
+	public static synchronized long getHourStartTime() {
+		return HourStartTime;
+	}
+
+	public static synchronized void setHourStartTime(long hourStartTime) {
+		HourStartTime = hourStartTime;
+	}
+
+	public static synchronized int getCurrentHourCount() {
+		return currentHourCount;
+	}
+
+	public static synchronized void setCurrentHourCount(int currentHourCount) {
+		GeonamesWScraper.currentHourCount = currentHourCount;
 	}
 }
