@@ -26,11 +26,11 @@ import com.roughindustries.air.resources.GlobalProperties;
  * @author roughindustries
  *
  */
-public class GeonamesWScraper{
+public class GeonamesWScraper {
 
 	private static long HourStartTime = 0;
 	private static int currentHourCount = 0;
-	
+
 	/**
 	 * 
 	 */
@@ -41,8 +41,8 @@ public class GeonamesWScraper{
 	 */
 	GlobalProperties Props = GlobalProperties.getInstance();
 
-	public static synchronized void addOneToCount(){
-		if(HourStartTime == 0){
+	public static synchronized void addOneToCount() {
+		if (HourStartTime == 0) {
 			HourStartTime = new Date().getTime();
 		}
 		Date current = new Date();
@@ -50,70 +50,80 @@ public class GeonamesWScraper{
 		cal.setTimeInMillis(HourStartTime);
 		cal.add(Calendar.HOUR, 1);
 		Date oneHourAhead = cal.getTime();
-		if(oneHourAhead.getTime() < current.getTime()){
+		if (oneHourAhead.getTime() < current.getTime()) {
 			currentHourCount = 0;
 			HourStartTime = new Date().getTime();
 		} else {
 			currentHourCount++;
 		}
 	}
-	
+
 	public boolean updateLocationsServed(Double Lat, Double Long, double radius) {
 		boolean results = false;
 		try {
-			WebService.setUserName("travishdc");
-			List<Toponym> searchResult;
-			searchResult = WebService.findNearby(Lat.doubleValue(), Long.doubleValue(), radius, FeatureClass.P,
-					new String[] { "PPLC" }, "en", 3);
-			GeonamesWScraper.addOneToCount();
-			searchResult.addAll(WebService.findNearby(Lat.doubleValue(), Long.doubleValue(), radius, FeatureClass.P,
-					new String[] { "PPLA" }, "en", 10));
-			GeonamesWScraper.addOneToCount();
-			searchResult.addAll(WebService.findNearby(Lat.doubleValue(), Long.doubleValue(), radius, FeatureClass.P,
-					new String[] { "PPLA2" }, "en", 10));
-			GeonamesWScraper.addOneToCount();
-			List<Toponym> completeSearchResults = new ArrayList<Toponym>();
-			for (Toponym topo_item : searchResult) {
-				Toponym toponym = WebService.get(topo_item.getGeoNameId(), "en", Style.LONG.name());
-				GeonamesWScraper.addOneToCount();
-				completeSearchResults.add(toponym);
-				logger.debug(topo_item.toString());
-
-			}
-			completeSearchResults.sort(new Comparator<Toponym>() {
-				@Override
-				public int compare(Toponym o1, Toponym o2) {
-					try {
-						if (o1.getPopulation() == null) {
-							return 1;
-						} else if (o2.getPopulation() == null) {
-							return -1;
-						} else {
-							int result = Double.compare(o1.getPopulation(), o2.getPopulation());
-							return -1 * result;
-						}
-					} catch (InsufficientStyleException e) {
-						e.printStackTrace();
-					}
-					return 0;
-				}
-			});
-			if(completeSearchResults.size() >= 3){
-				completeSearchResults = completeSearchResults.subList(0, 3);
+			if (GeonamesWScraper.getCurrentHourCount() > 1500) {
+				Date current = new Date();
+				Calendar cal = Calendar.getInstance();
+				cal.setTimeInMillis(GeonamesWScraper.getHourStartTime());
+				cal.add(Calendar.HOUR, 1);
+				Date oneHourAhead = cal.getTime();
+				Thread.sleep(oneHourAhead.getTime() - current.getTime());
 			} else {
-				completeSearchResults = completeSearchResults.subList(0, completeSearchResults.size());
+				WebService.setUserName("travishdc");
+				List<Toponym> searchResult;
+				searchResult = WebService.findNearby(Lat.doubleValue(), Long.doubleValue(), radius, FeatureClass.P,
+						new String[] { "PPLC" }, "en", 3);
+				GeonamesWScraper.addOneToCount();
+				searchResult.addAll(WebService.findNearby(Lat.doubleValue(), Long.doubleValue(), radius, FeatureClass.P,
+						new String[] { "PPLA" }, "en", 10));
+				GeonamesWScraper.addOneToCount();
+				searchResult.addAll(WebService.findNearby(Lat.doubleValue(), Long.doubleValue(), radius, FeatureClass.P,
+						new String[] { "PPLA2" }, "en", 10));
+				GeonamesWScraper.addOneToCount();
+				List<Toponym> completeSearchResults = new ArrayList<Toponym>();
+				for (Toponym topo_item : searchResult) {
+					Toponym toponym = WebService.get(topo_item.getGeoNameId(), "en", Style.LONG.name());
+					GeonamesWScraper.addOneToCount();
+					completeSearchResults.add(toponym);
+					logger.debug(topo_item.toString());
+
+				}
+				completeSearchResults.sort(new Comparator<Toponym>() {
+					@Override
+					public int compare(Toponym o1, Toponym o2) {
+						try {
+							if (o1.getPopulation() == null) {
+								return 1;
+							} else if (o2.getPopulation() == null) {
+								return -1;
+							} else {
+								int result = Double.compare(o1.getPopulation(), o2.getPopulation());
+								return -1 * result;
+							}
+						} catch (InsufficientStyleException e) {
+							e.printStackTrace();
+						}
+						return 0;
+					}
+				});
+				if (completeSearchResults.size() >= 3) {
+					completeSearchResults = completeSearchResults.subList(0, 3);
+				} else {
+					completeSearchResults = completeSearchResults.subList(0, completeSearchResults.size());
+				}
+				for (Toponym topo_item : completeSearchResults) {
+					LocationsServed loc = new LocationsServed();
+					loc.setName(topo_item.getName());
+					loc.setLatitude(topo_item.getLatitude());
+					loc.setLongitude(topo_item.getLongitude());
+					// loc = updateLocationsServed(loc);
+					logger.debug(topo_item.toString());
+				}
+				results = true;
 			}
-			for (Toponym topo_item : completeSearchResults) {
-				LocationsServed loc = new LocationsServed();
-				loc.setName(topo_item.getName());
-				loc.setLatitude(topo_item.getLatitude());
-				loc.setLongitude(topo_item.getLongitude());
-				//loc = updateLocationsServed(loc);
-				logger.debug(topo_item.toString());
-			}
-			results = true;
 		} catch (GeoNamesException e) {
-			logger.error("Geonames limit probably exceeded! Possible count is "+GeonamesWScraper.getCurrentHourCount());
+			logger.error(
+					"Geonames limit probably exceeded! Possible count is " + GeonamesWScraper.getCurrentHourCount());
 		} catch (IOException e) {
 			e.printStackTrace();
 		} catch (Exception e) {
@@ -132,9 +142,9 @@ public class GeonamesWScraper{
 			LocationsServedExample example = new LocationsServedExample();
 			example.createCriteria().andLatitudeEqualTo(loc.getLatitude());
 			example.createCriteria().andLongitudeEqualTo(loc.getLongitude());
-			
+
 			List<LocationsServed> locs = mapper.selectByExample(example);
-			if(locs.size() > 0){
+			if (locs.size() > 0) {
 				loc.setInternalLocationServedId(locs.get(0).getInternalLocationServedId());
 				mapper.updateByExample(loc, example);
 				result = loc;

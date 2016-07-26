@@ -4,6 +4,7 @@ import java.io.IOException;
 import java.net.URL;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.Calendar;
 import java.util.Comparator;
 import java.util.Date;
 import java.util.List;
@@ -106,19 +107,30 @@ public class AirportPageForAirportInfoParser implements Runnable {
 								ToponymSearchCriteria searchCriteria = new ToponymSearchCriteria();
 								// searchCriteria.setQ(java.net.URLEncoder.encode(ai.getName(),"UTF8"));
 								searchCriteria.setQ(ai.getName());
-								ToponymSearchResult searchResult = WebService.search(searchCriteria);
-								GeonamesWScraper.addOneToCount();
-								if (searchResult.getToponyms().size() > 0) {
-									Toponym toponym = searchResult.getToponyms().get(0);
-									ai.setLatitude(toponym.getLatitude());
-									ai.setLongitude(toponym.getLongitude());
-									logger.debug("Geonames search results " + toponym.getName() + " "
-											+ toponym.getCountryName());
+								if (GeonamesWScraper.getCurrentHourCount() > 1500) {
+									Date current = new Date();
+									Calendar cal = Calendar.getInstance();
+									cal.setTimeInMillis(GeonamesWScraper.getHourStartTime());
+									cal.add(Calendar.HOUR, 1);
+									Date oneHourAhead = cal.getTime();
+									Thread.sleep(oneHourAhead.getTime() - current.getTime());
+								} else {
+									ToponymSearchResult searchResult = WebService.search(searchCriteria);
+									GeonamesWScraper.addOneToCount();
+
+									if (searchResult.getToponyms().size() > 0) {
+										Toponym toponym = searchResult.getToponyms().get(0);
+										ai.setLatitude(toponym.getLatitude());
+										ai.setLongitude(toponym.getLongitude());
+										logger.debug("Geonames search results " + toponym.getName() + " "
+												+ toponym.getCountryName());
+									}
+									searchCriteria = null;
+									searchResult = null;
 								}
-								searchCriteria = null;
-								searchResult = null;
 							} catch (GeoNamesException e) {
-								logger.error("Geonames limit probably exceeded! Unable to try to get airport coordinates.");
+								logger.error(
+										"Geonames limit probably exceeded! Unable to try to get airport coordinates.");
 							}
 						}
 
@@ -150,7 +162,7 @@ public class AirportPageForAirportInfoParser implements Runnable {
 						}
 
 						// Elements destinationAs = andTDs.get(1).select("a");
-						//ai = updateAirport(ai);
+						// ai = updateAirport(ai);
 
 						if ((ai.getLatitude() != null && !ai.getLatitude().isNaN())
 								&& (ai.getLongitude() != null && !ai.getLongitude().isNaN())) {
@@ -160,11 +172,11 @@ public class AirportPageForAirportInfoParser implements Runnable {
 								GeonamesWScraper geonames = new GeonamesWScraper();
 								boolean updated = geonames.updateLocationsServed(ai.getLatitude(), ai.getLongitude(),
 										150.0);
-								//if (updated) {
+								// if (updated) {
 								ai.setLocationsServedLastUpdate(new Date());
-								//}
+								// }
 								geonames = null;
-								//ai = updateAirport(ai);
+								// ai = updateAirport(ai);
 							}
 						}
 

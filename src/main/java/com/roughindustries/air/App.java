@@ -2,6 +2,7 @@ package com.roughindustries.air;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Random;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ExecutorService;
@@ -91,6 +92,7 @@ public class App implements Runnable {
 				// airport))).start();
 				//(new AirportPageForAirportInfoParser(this, i, airport)).run();
 			//}
+			Random randomGenerator = new Random();
 			final BlockingQueue<Runnable> queue = new ArrayBlockingQueue<>(25);
 			ExecutorService executorService = new ThreadPoolExecutor(13, 25, 0L, TimeUnit.MILLISECONDS, queue);
 			for (int i = 0; i < al.size(); i++) {
@@ -101,6 +103,9 @@ public class App implements Runnable {
 							Airports airport = al.get(i);
 							//Runnable call = new DocumentRunnable(al.get(i).getWikiUrl());
 							Runnable call = new AirportPageForAirportInfoParser(airport);
+						    int randomInt = randomGenerator.nextInt(10);
+							logger.debug("Waiting ... "+randomInt+" seconds to start next thread");
+							Thread.sleep(randomInt*1000);
 							executorService.execute(call);
 						//}
 						submitted = true;
