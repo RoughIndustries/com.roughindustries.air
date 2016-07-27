@@ -1,10 +1,12 @@
 package com.roughindustries.air;
 
+import java.io.FileWriter;
 import java.io.IOException;
 import java.util.List;
 import java.util.Random;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.ThreadPoolExecutor;
@@ -14,6 +16,8 @@ import org.apache.ibatis.session.SqlSession;
 import org.apache.log4j.Logger;
 import org.jsoup.select.Elements;
 
+import com.esotericsoftware.yamlbeans.YamlException;
+import com.esotericsoftware.yamlbeans.YamlWriter;
 import com.roughindustries.air.client.AirlinesMapper;
 import com.roughindustries.air.model.Airlines;
 import com.roughindustries.air.model.AirlinesExample;
@@ -21,6 +25,7 @@ import com.roughindustries.air.model.Airports;
 import com.roughindustries.air.resources.GlobalProperties;
 import com.roughindustries.air.scrapers.AirportPageForAirportInfoParser;
 import com.roughindustries.air.scrapers.AirportScraper;
+
 
 /**
  * Hello world!
@@ -38,7 +43,7 @@ public class App implements Runnable {
 	 */
 	static GlobalProperties Props = GlobalProperties.getInstance();
 
-	static List<Airports> al = null;
+	public CopyOnWriteArrayList<Airports> al = new CopyOnWriteArrayList<Airports>();
 
 	public static void main(String[] args) {
 		App app = new App();
@@ -84,7 +89,7 @@ public class App implements Runnable {
 			logger.debug(Props.getAirportPage());
 			AirportScraper as = new AirportScraper();
 			Elements airports = as.parseIATAAlphaGroups(as.getIATAAlphaGroups(as.getAirportListPage()));
-			al = as.parseAirportsElementList(airports);
+			as.parseAirportsElementList(al, airports);
 			//for (int i = 0; i < al.size(); i++) {
 				// for (int i = 0; i < 5; i++) {
 				//Airports airport = al.get(i);
@@ -102,10 +107,10 @@ public class App implements Runnable {
 						//if (al.get(i).getWikiUrl() != null && !al.get(i).getWikiUrl().isEmpty()) {
 							Airports airport = al.get(i);
 							//Runnable call = new DocumentRunnable(al.get(i).getWikiUrl());
-							Runnable call = new AirportPageForAirportInfoParser(airport);
-						    int randomInt = randomGenerator.nextInt(10);
-							logger.debug("Waiting ... "+randomInt+" seconds to start next thread");
-							Thread.sleep(randomInt*1000);
+							Runnable call = new AirportPageForAirportInfoParser(i, this);
+						    //int randomInt = randomGenerator.nextInt(10);
+							//logger.debug("Waiting ... "+randomInt+" seconds to start next thread");
+							//Thread.sleep(randomInt*1000);
 							executorService.execute(call);
 						//}
 						submitted = true;
@@ -117,9 +122,22 @@ public class App implements Runnable {
 				}
 			}
 			executorService.shutdown();
+						
 		} catch (IOException e) {
 			e.printStackTrace();
 		}
-
+	}
+	
+	public void writeYamlToFile(String filename, Airports ar) {
+		try {
+			YamlWriter writer = new YamlWriter(new FileWriter(filename, true));
+			writer.getConfig().writeConfig.setEscapeUnicode(false);
+			writer.write(ar);
+			writer.close();
+		} catch (YamlException e) {
+			e.printStackTrace();
+		} catch (IOException e) {
+			e.printStackTrace();
+		}
 	}
 }

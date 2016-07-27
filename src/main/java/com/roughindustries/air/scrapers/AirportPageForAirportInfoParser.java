@@ -2,12 +2,15 @@ package com.roughindustries.air.scrapers;
 
 import java.io.IOException;
 import java.net.URL;
+import java.time.Clock;
+import java.time.Instant;
 import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 import java.util.ArrayList;
-import java.util.Calendar;
 import java.util.Comparator;
 import java.util.Date;
 import java.util.List;
+import java.util.concurrent.CopyOnWriteArrayList;
 
 import org.apache.ibatis.session.SqlSession;
 import org.apache.log4j.Logger;
@@ -24,6 +27,7 @@ import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Element;
 import org.jsoup.select.Elements;
 
+import com.roughindustries.air.App;
 import com.roughindustries.air.client.AirportsMapper;
 import com.roughindustries.air.client.LocationsServedMapper;
 import com.roughindustries.air.model.Airlines;
@@ -45,10 +49,13 @@ public class AirportPageForAirportInfoParser implements Runnable {
 	 */
 	GlobalProperties Props = GlobalProperties.getInstance();
 
-	Airports ai;
+	App app;
 
-	public AirportPageForAirportInfoParser(Airports ai) {
-		this.ai = ai;
+	private int airport_index;
+
+	public AirportPageForAirportInfoParser(int i, App app) {
+		this.airport_index = i;
+		this.app = app;
 		// this.ai.setInternalAirportId(0);
 	}
 
@@ -57,6 +64,7 @@ public class AirportPageForAirportInfoParser implements Runnable {
 		boolean quit = false;
 		int max_attempts = 5;
 		int attempts = 0;
+		Airports ai = app.al.get(airport_index);
 		while (!quit) {
 			try {
 				Document page = null;
@@ -89,51 +97,10 @@ public class AirportPageForAirportInfoParser implements Runnable {
 							}
 							icao_code = null;
 						}
-						// Get Lat and Long
-						Elements coordinates = page.select("[href*=/tools.wmflabs.org/geohack/]");
-						if (coordinates.attr("href") != null && !"".equals(coordinates.attr("href"))) {
-							GeoHackScraper geoScrape = new GeoHackScraper();
-							Elements latLong = geoScrape
-									.parseGeoHackPageForLatLong("https:" + coordinates.attr("href"));
-							if (latLong != null) {
-								ai.setLatitude(Double.parseDouble(latLong.select("[class*=latitude]").text()));
-								ai.setLongitude(Double.parseDouble(latLong.select("[class*=longitude]").text()));
-							}
-						} else {
-							logger.debug(ai.getIataCode() + " " + ai.getName() + " has no coordiantes from wiki");
 
-							try {
-								WebService.setUserName("travishdc");
-								ToponymSearchCriteria searchCriteria = new ToponymSearchCriteria();
-								// searchCriteria.setQ(java.net.URLEncoder.encode(ai.getName(),"UTF8"));
-								searchCriteria.setQ(ai.getName());
-								if (GeonamesWScraper.getCurrentHourCount() > 1500) {
-									Date current = new Date();
-									Calendar cal = Calendar.getInstance();
-									cal.setTimeInMillis(GeonamesWScraper.getHourStartTime());
-									cal.add(Calendar.HOUR, 1);
-									Date oneHourAhead = cal.getTime();
-									Thread.sleep(oneHourAhead.getTime() - current.getTime());
-								} else {
-									ToponymSearchResult searchResult = WebService.search(searchCriteria);
-									GeonamesWScraper.addOneToCount();
-
-									if (searchResult.getToponyms().size() > 0) {
-										Toponym toponym = searchResult.getToponyms().get(0);
-										ai.setLatitude(toponym.getLatitude());
-										ai.setLongitude(toponym.getLongitude());
-										logger.debug("Geonames search results " + toponym.getName() + " "
-												+ toponym.getCountryName());
-									}
-									searchCriteria = null;
-									searchResult = null;
-								}
-							} catch (GeoNamesException e) {
-								logger.error(
-										"Geonames limit probably exceeded! Unable to try to get airport coordinates.");
-							}
-						}
-
+						//Could parse the location in here
+						getLatLong(ai);
+						
 						// ai.setIsAd(true);
 						Elements andTRs = andTH.parents().get(1).select("tr");
 						// remove the header row
@@ -160,37 +127,46 @@ public class AirportPageForAirportInfoParser implements Runnable {
 								}
 							}
 						}
+						
 
 						// Elements destinationAs = andTDs.get(1).select("a");
 						// ai = updateAirport(ai);
 
+						if(ai.getLocationsServedLastUpdate() == null){
+							Clock clock = Clock.systemUTC();
+							long time = clock.millis() - 432000000;
+							logger.debug("Time is "+time);
+							ai.setLocationsServedLastUpdate(time);
+						}
 						if ((ai.getLatitude() != null && !ai.getLatitude().isNaN())
 								&& (ai.getLongitude() != null && !ai.getLongitude().isNaN())) {
+							Clock clock = Clock.systemUTC();
+							long time = clock.millis() - 432000000;
 							if (ai.getLocationsServedLastUpdate() == null
-									|| (ai.getLocationsServedLastUpdate().getTime() + 432000000 > (new Date())
-											.getTime())) {
+									|| (ai.getLocationsServedLastUpdate() <= time)) {
+								Clock instant_now = Clock.systemUTC();
+								logger.debug(ai.getLocationsServedLastUpdate() + " > " + instant_now.millis());
 								GeonamesWScraper geonames = new GeonamesWScraper();
-								boolean updated = geonames.updateLocationsServed(ai.getLatitude(), ai.getLongitude(),
+								List<LocationsServed> updated = geonames.updateLocationsServed(ai.getLatitude(), ai.getLongitude(),
 										150.0);
-								// if (updated) {
-								ai.setLocationsServedLastUpdate(new Date());
-								// }
+								ai.locationsServed.addAll(updated);
+								ai.setLocationsServedLastUpdate(instant_now.millis());
 								geonames = null;
-								// ai = updateAirport(ai);
 							}
 						}
 
 						page = null;
+						app.al.set(airport_index, ai);
+						app.writeYamlToFile("airports.yml", ai);
+						logger.debug(ai.getIataCode() + " " + ai.getName() + " Airport Page Processed");
 					} else {
 						// ai.setIsAd(false);
 						// updateAirport(ai);
 						page = null;
+						logger.debug(ai.getIataCode() + " " + ai.getName() + " Airport Page Not Processed. No Airline or Destinations.");
 					}
-
 				}
-
 				quit = true;
-				logger.debug(ai.getIataCode() + " " + ai.getName() + " Airport Page Processed");
 			} catch (Exception e) {
 				attempts++;
 				if (attempts > max_attempts) {
@@ -207,6 +183,58 @@ public class AirportPageForAirportInfoParser implements Runnable {
 			}
 		}
 
+	}
+
+	public void getLatLong(Airports ai) {
+		try {
+			Document page = null;
+			if (ai.getWikiUrl() != null && !ai.getWikiUrl().isEmpty()) {
+				page = Jsoup.parse(new URL("https://en.wikipedia.org" + ai.getWikiUrl()), 10000);
+				// Get Lat and Long
+				if(ai.getIataCode().equalsIgnoreCase("AAH")){
+					logger.debug("");
+				}
+				Elements coordinates = page.select("[href*=/tools.wmflabs.org/geohack]");
+				for(Element element : coordinates){
+					logger.debug(ai.getName()+" coordinates page "+"https:" + element.attr("href"));
+				}
+				if (coordinates.attr("href") != null && !"".equals(coordinates.attr("href"))) {
+					GeoHackScraper geoScrape = new GeoHackScraper();
+					Elements latLong = geoScrape.parseGeoHackPageForLatLong("https:" + coordinates.attr("href"));
+					if (latLong != null) {
+						ai.setLatitude(Double.parseDouble(latLong.select("[class*=latitude]").text()));
+						ai.setLongitude(Double.parseDouble(latLong.select("[class*=longitude]").text()));
+						logger.debug(ai.getName()+" lat="+ai.getLatitude()+" long="+ai.getLongitude());
+					}
+				} else {
+					logger.debug(ai.getIataCode() + " " + ai.getName() + " has no coordiantes from wiki");
+
+//					try {
+//						WebService.setUserName("travishdc");
+//						ToponymSearchCriteria searchCriteria = new ToponymSearchCriteria();
+//						// searchCriteria.setQ(java.net.URLEncoder.encode(ai.getName(),"UTF8"));
+//						searchCriteria.setQ(ai.getName());
+
+//							ToponymSearchResult searchResult = WebService.search(searchCriteria);
+//							GeonamesWScraper.addOneToCount();
+//
+//							if (searchResult.getToponyms().size() > 0) {
+//								Toponym toponym = searchResult.getToponyms().get(0);
+//								ai.setLatitude(toponym.getLatitude());
+//								ai.setLongitude(toponym.getLongitude());
+//								logger.debug("Geonames search results " + toponym.getName() + " "
+//										+ toponym.getCountryName());
+//							}
+//							searchCriteria = null;
+//							searchResult = null;
+
+//					} catch (GeoNamesException e) {
+//						logger.error("Geonames limit probably exceeded! Unable to try to get airport coordinates.");
+//					}
+				}
+			}
+		} catch (Exception e) {
+		}
 	}
 
 	private Airports updateAirport(Airports ai) {
@@ -239,4 +267,5 @@ public class AirportPageForAirportInfoParser implements Runnable {
 		return result;
 
 	}
+
 }

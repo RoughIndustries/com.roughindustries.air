@@ -6,6 +6,7 @@ package com.roughindustries.air.scrapers;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.CopyOnWriteArrayList;
 
 import org.apache.log4j.Logger;
 import org.jsoup.Jsoup;
@@ -69,9 +70,14 @@ public class AirportScraper{
 	 * @param airports
 	 * @return
 	 */
-	public List<Airports> parseAirportsElementList(Elements airports) {
-		List<Airports> al = new ArrayList<Airports>();
+	public List<Airports> parseAirportsElementList(CopyOnWriteArrayList<Airports> al, Elements airports) {
+		int i = 0;
 		for (Element airport : airports) {
+//			if(i > 25){
+//				break;
+//			} else {
+//				i++;
+//			}
 			Elements td_list = airport.select("td");
 			if (td_list.get(2).getElementsByAttributeValueContaining("href", "redlink").isEmpty()) {
 				Airports ia = new Airports();

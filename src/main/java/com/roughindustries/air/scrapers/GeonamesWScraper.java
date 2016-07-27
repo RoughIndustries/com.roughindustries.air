@@ -58,69 +58,61 @@ public class GeonamesWScraper {
 		}
 	}
 
-	public boolean updateLocationsServed(Double Lat, Double Long, double radius) {
-		boolean results = false;
+	public List<LocationsServed> updateLocationsServed(Double Lat, Double Long, double radius) {
+		List<LocationsServed> locationsServed = new ArrayList<LocationsServed>();
 		try {
-			if (GeonamesWScraper.getCurrentHourCount() > 1500) {
-				Date current = new Date();
-				Calendar cal = Calendar.getInstance();
-				cal.setTimeInMillis(GeonamesWScraper.getHourStartTime());
-				cal.add(Calendar.HOUR, 1);
-				Date oneHourAhead = cal.getTime();
-				Thread.sleep(oneHourAhead.getTime() - current.getTime());
-			} else {
-				WebService.setUserName("travishdc");
-				List<Toponym> searchResult;
-				searchResult = WebService.findNearby(Lat.doubleValue(), Long.doubleValue(), radius, FeatureClass.P,
-						new String[] { "PPLC" }, "en", 3);
+			WebService.setUserName("travishdc");
+			List<Toponym> searchResult;
+			searchResult = WebService.findNearby(Lat.doubleValue(), Long.doubleValue(), radius, FeatureClass.P,
+					new String[] { "PPLC" }, "en", 3);
+			GeonamesWScraper.addOneToCount();
+			searchResult.addAll(WebService.findNearby(Lat.doubleValue(), Long.doubleValue(), radius, FeatureClass.P,
+					new String[] { "PPLA" }, "en", 10));
+			GeonamesWScraper.addOneToCount();
+			searchResult.addAll(WebService.findNearby(Lat.doubleValue(), Long.doubleValue(), radius, FeatureClass.P,
+					new String[] { "PPLA2" }, "en", 10));
+			GeonamesWScraper.addOneToCount();
+			List<Toponym> completeSearchResults = new ArrayList<Toponym>();
+			for (Toponym topo_item : searchResult) {
+				Toponym toponym = WebService.get(topo_item.getGeoNameId(), "en", Style.LONG.name());
 				GeonamesWScraper.addOneToCount();
-				searchResult.addAll(WebService.findNearby(Lat.doubleValue(), Long.doubleValue(), radius, FeatureClass.P,
-						new String[] { "PPLA" }, "en", 10));
-				GeonamesWScraper.addOneToCount();
-				searchResult.addAll(WebService.findNearby(Lat.doubleValue(), Long.doubleValue(), radius, FeatureClass.P,
-						new String[] { "PPLA2" }, "en", 10));
-				GeonamesWScraper.addOneToCount();
-				List<Toponym> completeSearchResults = new ArrayList<Toponym>();
-				for (Toponym topo_item : searchResult) {
-					Toponym toponym = WebService.get(topo_item.getGeoNameId(), "en", Style.LONG.name());
-					GeonamesWScraper.addOneToCount();
-					completeSearchResults.add(toponym);
-					logger.debug(topo_item.toString());
+				completeSearchResults.add(toponym);
+				logger.debug(topo_item.toString());
 
-				}
-				completeSearchResults.sort(new Comparator<Toponym>() {
-					@Override
-					public int compare(Toponym o1, Toponym o2) {
-						try {
-							if (o1.getPopulation() == null) {
-								return 1;
-							} else if (o2.getPopulation() == null) {
-								return -1;
-							} else {
-								int result = Double.compare(o1.getPopulation(), o2.getPopulation());
-								return -1 * result;
-							}
-						} catch (InsufficientStyleException e) {
-							e.printStackTrace();
-						}
-						return 0;
-					}
-				});
-				if (completeSearchResults.size() >= 3) {
-					completeSearchResults = completeSearchResults.subList(0, 3);
-				} else {
-					completeSearchResults = completeSearchResults.subList(0, completeSearchResults.size());
-				}
-				for (Toponym topo_item : completeSearchResults) {
-					LocationsServed loc = new LocationsServed();
-					loc.setName(topo_item.getName());
-					loc.setLatitude(topo_item.getLatitude());
-					loc.setLongitude(topo_item.getLongitude());
-					// loc = updateLocationsServed(loc);
-					logger.debug(topo_item.toString());
-				}
-				results = true;
 			}
+			completeSearchResults.sort(new Comparator<Toponym>() {
+				@Override
+				public int compare(Toponym o1, Toponym o2) {
+					try {
+						if (o1.getPopulation() == null) {
+							return 1;
+						} else if (o2.getPopulation() == null) {
+							return -1;
+						} else {
+							int result = Double.compare(o1.getPopulation(), o2.getPopulation());
+							return -1 * result;
+						}
+					} catch (InsufficientStyleException e) {
+						e.printStackTrace();
+					}
+					return 0;
+				}
+			});
+			if (completeSearchResults.size() >= 3) {
+				completeSearchResults = completeSearchResults.subList(0, 3);
+			} else {
+				completeSearchResults = completeSearchResults.subList(0, completeSearchResults.size());
+			}
+			for (Toponym topo_item : completeSearchResults) {
+				LocationsServed loc = new LocationsServed();
+				loc.setName(topo_item.getName());
+				loc.setLatitude(topo_item.getLatitude());
+				loc.setLongitude(topo_item.getLongitude());
+				locationsServed.add(loc);
+				// loc = updateLocationsServed(loc);
+				logger.debug(topo_item.toString());
+			}
+
 		} catch (GeoNamesException e) {
 			logger.error(
 					"Geonames limit probably exceeded! Possible count is " + GeonamesWScraper.getCurrentHourCount());
@@ -129,7 +121,7 @@ public class GeonamesWScraper {
 		} catch (Exception e) {
 			e.printStackTrace();
 		}
-		return results;
+		return locationsServed;
 
 	}
 
