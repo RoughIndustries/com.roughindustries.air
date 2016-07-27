@@ -64,7 +64,7 @@ public class AirportPageForAirportInfoParser implements Runnable {
 		boolean quit = false;
 		int max_attempts = 5;
 		int attempts = 0;
-		Airports ai = app.al.get(airport_index);
+		Airports ai = app.full_al.get(airport_index);
 		while (!quit) {
 			try {
 				Document page = null;
@@ -98,9 +98,6 @@ public class AirportPageForAirportInfoParser implements Runnable {
 							icao_code = null;
 						}
 
-						//Could parse the location in here
-						getLatLong(ai);
-						
 						// ai.setIsAd(true);
 						Elements andTRs = andTH.parents().get(1).select("tr");
 						// remove the header row
@@ -110,6 +107,7 @@ public class AirportPageForAirportInfoParser implements Runnable {
 							Element andTR = andTRs.get(i);
 							Elements andTDs = andTR.select("td");
 							Elements airlineAs = andTDs.get(0).select("a");
+							Elements airlineDs = andTDs.get(1).select("a");
 							if (airlineAs.size() > 0) {
 								Airlines airline = new Airlines();
 								airline.setName(airlineAs.get(0).text());
@@ -117,6 +115,18 @@ public class AirportPageForAirportInfoParser implements Runnable {
 										.isEmpty()) {
 									if (airlineAs.get(0).attr("href").contains("/wiki/")) {
 										airline.setWikiUrl(airlineAs.get(0).attr("href"));
+										if (airlineDs.size() > 0) {
+											for (Element destination : airlineDs) {
+												String text = "";
+												String href = "";
+												if (destination.attr("href").contains("/wiki/")) {
+													href = destination.attr("href");
+													text = destination.text();
+												}
+												logger.debug(text);
+												logger.debug(href);
+											}
+										}
 									} else {
 										logger.debug("Exception: Bad wiki link for " + airline.getName() + " from "
 												+ ai.getName());
@@ -125,45 +135,26 @@ public class AirportPageForAirportInfoParser implements Runnable {
 									logger.debug("Exception: RedLine wiki link for " + airline.getName() + " from "
 											+ ai.getName());
 								}
+								ai.airlines.add(airline);
 							}
+
 						}
-						
 
 						// Elements destinationAs = andTDs.get(1).select("a");
 						// ai = updateAirport(ai);
 
-						if(ai.getLocationsServedLastUpdate() == null){
-							Clock clock = Clock.systemUTC();
-							long time = clock.millis() - 432000000;
-							logger.debug("Time is "+time);
-							ai.setLocationsServedLastUpdate(time);
-						}
-						if ((ai.getLatitude() != null && !ai.getLatitude().isNaN())
-								&& (ai.getLongitude() != null && !ai.getLongitude().isNaN())) {
-							Clock clock = Clock.systemUTC();
-							long time = clock.millis() - 432000000;
-							if (ai.getLocationsServedLastUpdate() == null
-									|| (ai.getLocationsServedLastUpdate() <= time)) {
-								Clock instant_now = Clock.systemUTC();
-								logger.debug(ai.getLocationsServedLastUpdate() + " > " + instant_now.millis());
-								GeonamesWScraper geonames = new GeonamesWScraper();
-								List<LocationsServed> updated = geonames.updateLocationsServed(ai.getLatitude(), ai.getLongitude(),
-										150.0);
-								ai.locationsServed.addAll(updated);
-								ai.setLocationsServedLastUpdate(instant_now.millis());
-								geonames = null;
-							}
-						}
+						AirportScraper as = new AirportScraper();
+						as.parseAirportPageForLatLong(ai);
 
 						page = null;
-						app.al.set(airport_index, ai);
-						app.writeYamlToFile("airports.yml", ai);
+						app.al.add(ai);
 						logger.debug(ai.getIataCode() + " " + ai.getName() + " Airport Page Processed");
 					} else {
 						// ai.setIsAd(false);
 						// updateAirport(ai);
 						page = null;
-						logger.debug(ai.getIataCode() + " " + ai.getName() + " Airport Page Not Processed. No Airline or Destinations.");
+						logger.debug(ai.getIataCode() + " " + ai.getName()
+								+ " Airport Page Not Processed. No Airline or Destinations.");
 					}
 				}
 				quit = true;
@@ -183,58 +174,6 @@ public class AirportPageForAirportInfoParser implements Runnable {
 			}
 		}
 
-	}
-
-	public void getLatLong(Airports ai) {
-		try {
-			Document page = null;
-			if (ai.getWikiUrl() != null && !ai.getWikiUrl().isEmpty()) {
-				page = Jsoup.parse(new URL("https://en.wikipedia.org" + ai.getWikiUrl()), 10000);
-				// Get Lat and Long
-				if(ai.getIataCode().equalsIgnoreCase("AAH")){
-					logger.debug("");
-				}
-				Elements coordinates = page.select("[href*=/tools.wmflabs.org/geohack]");
-				for(Element element : coordinates){
-					logger.debug(ai.getName()+" coordinates page "+"https:" + element.attr("href"));
-				}
-				if (coordinates.attr("href") != null && !"".equals(coordinates.attr("href"))) {
-					GeoHackScraper geoScrape = new GeoHackScraper();
-					Elements latLong = geoScrape.parseGeoHackPageForLatLong("https:" + coordinates.attr("href"));
-					if (latLong != null) {
-						ai.setLatitude(Double.parseDouble(latLong.select("[class*=latitude]").text()));
-						ai.setLongitude(Double.parseDouble(latLong.select("[class*=longitude]").text()));
-						logger.debug(ai.getName()+" lat="+ai.getLatitude()+" long="+ai.getLongitude());
-					}
-				} else {
-					logger.debug(ai.getIataCode() + " " + ai.getName() + " has no coordiantes from wiki");
-
-//					try {
-//						WebService.setUserName("travishdc");
-//						ToponymSearchCriteria searchCriteria = new ToponymSearchCriteria();
-//						// searchCriteria.setQ(java.net.URLEncoder.encode(ai.getName(),"UTF8"));
-//						searchCriteria.setQ(ai.getName());
-
-//							ToponymSearchResult searchResult = WebService.search(searchCriteria);
-//							GeonamesWScraper.addOneToCount();
-//
-//							if (searchResult.getToponyms().size() > 0) {
-//								Toponym toponym = searchResult.getToponyms().get(0);
-//								ai.setLatitude(toponym.getLatitude());
-//								ai.setLongitude(toponym.getLongitude());
-//								logger.debug("Geonames search results " + toponym.getName() + " "
-//										+ toponym.getCountryName());
-//							}
-//							searchCriteria = null;
-//							searchResult = null;
-
-//					} catch (GeoNamesException e) {
-//						logger.error("Geonames limit probably exceeded! Unable to try to get airport coordinates.");
-//					}
-				}
-			}
-		} catch (Exception e) {
-		}
 	}
 
 	private Airports updateAirport(Airports ai) {

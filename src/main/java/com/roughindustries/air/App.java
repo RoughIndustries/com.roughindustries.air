@@ -26,12 +26,11 @@ import com.roughindustries.air.resources.GlobalProperties;
 import com.roughindustries.air.scrapers.AirportPageForAirportInfoParser;
 import com.roughindustries.air.scrapers.AirportScraper;
 
-
 /**
  * Hello world!
  *
  */
-public class App implements Runnable {
+public class App {
 
 	/**
 	 * 
@@ -43,20 +42,35 @@ public class App implements Runnable {
 	 */
 	static GlobalProperties Props = GlobalProperties.getInstance();
 
+	public CopyOnWriteArrayList<Airports> full_al = new CopyOnWriteArrayList<Airports>();
 	public CopyOnWriteArrayList<Airports> al = new CopyOnWriteArrayList<Airports>();
+	final static BlockingQueue<Runnable> queue = new ArrayBlockingQueue<>(25);
+	AirportScraper as = new AirportScraper();
 
 	public static void main(String[] args) {
 		App app = new App();
-		app.run();
-		app = null;
+		// This method is designed to get the yaml airports as quick as
+		// possible. It is not really good for anything else.
+		app.parseAirports();
+		//app = null;
 		System.gc();
-		while (true) {
+		try {
+			Thread.sleep(10000);
+		} catch (InterruptedException e) {
+			e.printStackTrace();
+		}
+		while (queue.size() > 0) {
 			try {
 				Thread.sleep(1);
 			} catch (InterruptedException e) {
 				e.printStackTrace();
 			}
 		}
+		//app.parseLatLong();
+		app.parseLocationServed();
+		app.writeYamlToFile("airports.yml");
+		logger.debug(""+app.al.size());
+
 	}
 
 	public App() {
@@ -83,56 +97,57 @@ public class App implements Runnable {
 		}
 	}
 
-	@Override
-	public void run() {
+	public void parseAirports() {
 		try {
 			logger.debug(Props.getAirportPage());
-			AirportScraper as = new AirportScraper();
 			Elements airports = as.parseIATAAlphaGroups(as.getIATAAlphaGroups(as.getAirportListPage()));
-			as.parseAirportsElementList(al, airports);
-			//for (int i = 0; i < al.size(); i++) {
-				// for (int i = 0; i < 5; i++) {
-				//Airports airport = al.get(i);
-				// (new Thread(new AirportPageForAirportInfoParser(this, i,
-				// airport))).start();
-				//(new AirportPageForAirportInfoParser(this, i, airport)).run();
-			//}
-			Random randomGenerator = new Random();
-			final BlockingQueue<Runnable> queue = new ArrayBlockingQueue<>(25);
+			full_al = as.parseAirportsElementList(airports);
+
+			// Blow through the airports so that we can gwt them into yaml to
+			// work on them
 			ExecutorService executorService = new ThreadPoolExecutor(13, 25, 0L, TimeUnit.MILLISECONDS, queue);
-			for (int i = 0; i < al.size(); i++) {
+			for (int i = 0; i < full_al.size(); i++) {
 				boolean submitted = false;
 				while (!submitted) {
 					try {
-						//if (al.get(i).getWikiUrl() != null && !al.get(i).getWikiUrl().isEmpty()) {
-							Airports airport = al.get(i);
-							//Runnable call = new DocumentRunnable(al.get(i).getWikiUrl());
-							Runnable call = new AirportPageForAirportInfoParser(i, this);
-						    //int randomInt = randomGenerator.nextInt(10);
-							//logger.debug("Waiting ... "+randomInt+" seconds to start next thread");
-							//Thread.sleep(randomInt*1000);
-							executorService.execute(call);
-						//}
+						Airports airport = full_al.get(i);
+						Runnable call = new AirportPageForAirportInfoParser(i, this);
+						executorService.execute(call);
 						submitted = true;
 					} catch (RejectedExecutionException ree) {
-						//logger.debug("Queue is full");
+						// logger.debug("Queue is full");
 					} catch (Exception e) {
 						e.printStackTrace();
 					}
 				}
 			}
 			executorService.shutdown();
-						
+
 		} catch (IOException e) {
 			e.printStackTrace();
 		}
 	}
+
+	public void parseLatLong(){
+		for(int i = 0; i < al.size(); i++){
+			Airports new_ai = as.parseAirportPageForLatLong(al.get(i));
+			al.set(i, new_ai);
+		}
+	}
 	
-	public void writeYamlToFile(String filename, Airports ar) {
+	public void parseLocationServed(){
+		//for(int i = 0; i < al.size(); i++){
+		for(int i = 0; i < 25; i++){
+			Airports new_ai = as.parseGeonamesWSLocServ(al.get(i));
+			al.set(i, new_ai);
+		}
+	}
+
+	public void writeYamlToFile(String filename) {
 		try {
-			YamlWriter writer = new YamlWriter(new FileWriter(filename, true));
+			YamlWriter writer = new YamlWriter(new FileWriter(filename));
 			writer.getConfig().writeConfig.setEscapeUnicode(false);
-			writer.write(ar);
+			writer.write(al);
 			writer.close();
 		} catch (YamlException e) {
 			e.printStackTrace();
