@@ -1,11 +1,16 @@
 package com.roughindustries.air;
 
+import java.io.File;
+import java.io.FileReader;
 import java.io.FileWriter;
 import java.io.IOException;
+import java.util.Iterator;
 import java.util.List;
+import java.util.Map.Entry;
 import java.util.Random;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.RejectedExecutionException;
@@ -17,6 +22,7 @@ import org.apache.log4j.Logger;
 import org.jsoup.select.Elements;
 
 import com.esotericsoftware.yamlbeans.YamlException;
+import com.esotericsoftware.yamlbeans.YamlReader;
 import com.esotericsoftware.yamlbeans.YamlWriter;
 import com.roughindustries.air.client.AirlinesMapper;
 import com.roughindustries.air.model.Airlines;
@@ -43,16 +49,21 @@ public class App {
 	static GlobalProperties Props = GlobalProperties.getInstance();
 
 	public CopyOnWriteArrayList<Airports> full_al = new CopyOnWriteArrayList<Airports>();
-	public CopyOnWriteArrayList<Airports> al = new CopyOnWriteArrayList<Airports>();
+	public ConcurrentHashMap<String, Airports> al = new ConcurrentHashMap<String, Airports>();
 	final static BlockingQueue<Runnable> queue = new ArrayBlockingQueue<>(25);
 	AirportScraper as = new AirportScraper();
 
 	public static void main(String[] args) {
 		App app = new App();
-		// This method is designed to get the yaml airports as quick as
-		// possible. It is not really good for anything else.
+		// read the yaml in
+		app.readYamlToFile("airports.yml");
+
+		// This method is designed to get the airports as quick as
+		// possible. It is not really good for anything else. The
+		// idea is blow through these so that things that need to
+		// be throttled can be.
 		app.parseAirports();
-		//app = null;
+		// app = null;
 		System.gc();
 		try {
 			Thread.sleep(10000);
@@ -66,10 +77,15 @@ public class App {
 				e.printStackTrace();
 			}
 		}
-		//app.parseLatLong();
-		app.parseLocationServed();
+
+		// write the results out so we don't have to scrape them in the future
 		app.writeYamlToFile("airports.yml");
-		logger.debug(""+app.al.size());
+
+		// Load the yaml here instead of scraping
+
+		// app.parseLatLong();
+		app.parseLocationServed();
+		logger.debug("" + app.al.size());
 
 	}
 
@@ -128,18 +144,24 @@ public class App {
 		}
 	}
 
-	public void parseLatLong(){
-		for(int i = 0; i < al.size(); i++){
+	public void parseLatLong() {
+		for (int i = 0; i < al.size(); i++) {
 			Airports new_ai = as.parseAirportPageForLatLong(al.get(i));
-			al.set(i, new_ai);
+			al.put(new_ai.getIataCode(), new_ai);
 		}
 	}
-	
-	public void parseLocationServed(){
-		//for(int i = 0; i < al.size(); i++){
-		for(int i = 0; i < 25; i++){
-			Airports new_ai = as.parseGeonamesWSLocServ(al.get(i));
-			al.set(i, new_ai);
+
+	public void parseLocationServed() {
+	    Iterator<Entry<String, Airports>> it = al.entrySet().iterator();
+	    int i = 0;
+	    while (it.hasNext()) {
+	    	if(i >= 25){
+	    		break;
+	    	}
+	    	i++;
+	        Entry<String, Airports> pair = it.next();
+			Airports new_ai = as.parseGeonamesWSLocServ(pair.getValue());
+			al.put(new_ai.getIataCode(), new_ai);
 		}
 	}
 
@@ -149,6 +171,25 @@ public class App {
 			writer.getConfig().writeConfig.setEscapeUnicode(false);
 			writer.write(al);
 			writer.close();
+		} catch (YamlException e) {
+			e.printStackTrace();
+		} catch (IOException e) {
+			e.printStackTrace();
+		}
+	}
+
+	@SuppressWarnings("unchecked")
+	public void readYamlToFile(String filename) {
+		try {
+			FileReader fr = null;
+
+			File locatedFile = new File(filename);
+			if (locatedFile.exists()) {
+				fr = new FileReader(locatedFile);
+				YamlReader reader = new YamlReader(fr);
+				al = (ConcurrentHashMap<String, Airports>) reader.read();
+				reader.close();
+			}
 		} catch (YamlException e) {
 			e.printStackTrace();
 		} catch (IOException e) {

@@ -117,15 +117,30 @@ public class AirportPageForAirportInfoParser implements Runnable {
 										airline.setWikiUrl(airlineAs.get(0).attr("href"));
 										if (airlineDs.size() > 0) {
 											for (Element destination : airlineDs) {
-												String text = "";
+												String name = "";
 												String href = "";
+												String iata = "";
 												if (destination.attr("href").contains("/wiki/")) {
 													href = destination.attr("href");
-													text = destination.text();
+													name = destination.text();
+													Document destpage = Jsoup.parse(new URL("https://en.wikipedia.org" + href),
+															10000);
+													Elements iata_code = destpage.select(
+															"[href*=/wiki/International_Air_Transport_Association_airport_code] + b");
+													if (iata_code != null & !iata_code.isEmpty()) {
+														iata = iata_code.text().replaceAll("\\P{L}", " ");
+														Airports airport = new Airports();
+														airport.setIataCode(iata);
+														airline.destinations.put(iata, airport);
+														ai.destinations.put(iata, airport);
+													}
+
 												}
-												logger.debug(text);
-												logger.debug(href);
+												
 											}
+										}
+										if (airline.getIataCode() != null && !airline.getIataCode().isEmpty()) {
+											ai.airlines.put(airline.getIataCode(), airline);
 										}
 									} else {
 										logger.debug("Exception: Bad wiki link for " + airline.getName() + " from "
@@ -135,7 +150,6 @@ public class AirportPageForAirportInfoParser implements Runnable {
 									logger.debug("Exception: RedLine wiki link for " + airline.getName() + " from "
 											+ ai.getName());
 								}
-								ai.airlines.add(airline);
 							}
 
 						}
@@ -147,7 +161,8 @@ public class AirportPageForAirportInfoParser implements Runnable {
 						as.parseAirportPageForLatLong(ai);
 
 						page = null;
-						app.al.add(ai);
+
+						app.al.put(ai.getIataCode(), ai);
 						logger.debug(ai.getIataCode() + " " + ai.getName() + " Airport Page Processed");
 					} else {
 						// ai.setIsAd(false);
