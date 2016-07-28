@@ -131,7 +131,7 @@ public class AirportPageForAirportInfoParser implements Runnable {
 														iata = iata_code.text().replaceAll("\\P{L}", " ");
 														Airports airport = new Airports();
 														airport.setIataCode(iata);
-														airline.destinations.put(iata, airport);
+														airline.destinations.put(airport.getName(), airport);
 														ai.destinations.put(iata, airport);
 													}
 
