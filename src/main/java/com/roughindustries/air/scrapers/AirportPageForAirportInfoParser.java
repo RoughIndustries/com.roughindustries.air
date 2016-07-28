@@ -62,14 +62,14 @@ public class AirportPageForAirportInfoParser implements Runnable {
 	@Override
 	public void run() {
 		boolean quit = false;
-		int max_attempts = 5;
+		int max_attempts = 10;
 		int attempts = 0;
 		Airports ai = app.full_al.get(airport_index);
 		while (!quit) {
 			try {
 				Document page = null;
 				if (ai.getWikiUrl() != null && !ai.getWikiUrl().isEmpty()) {
-					page = Jsoup.parse(new URL("https://en.wikipedia.org" + ai.getWikiUrl()), 10000);
+					page = Jsoup.parse(new URL("https://en.wikipedia.org" + ai.getWikiUrl()), 20000);
 					// Get Airlines
 					Elements andTH = page.select("th:contains(Airlines) ~ th:contains(Destinations)");
 					// check to see if we have any airlines and destinations
@@ -128,19 +128,19 @@ public class AirportPageForAirportInfoParser implements Runnable {
 													Elements iata_code = destpage.select(
 															"[href*=/wiki/International_Air_Transport_Association_airport_code] + b");
 													if (iata_code != null & !iata_code.isEmpty()) {
-														iata = iata_code.text().replaceAll("\\P{L}", " ");
+														//iata = iata_code.text().replaceAll("\\P{L}", " ");
 														Airports airport = new Airports();
-														airport.setIataCode(iata);
-														airline.destinations.put(airport.getName(), airport);
-														ai.destinations.put(iata, airport);
+														airport.setIataCode(iata_code.text().replaceAll("\\P{L}", " "));
+														airline.airline_destinations.add(airport.getIataCode());
+														ai.airport_destinations.put(iata, airport);
 													}
 
 												}
 												
 											}
 										}
-										if (airline.getIataCode() != null && !airline.getIataCode().isEmpty()) {
-											ai.airlines.put(airline.getIataCode(), airline);
+										if (airline.getName() != null && !airline.getName().isEmpty()) {
+											ai.airlines.put(airline.getName(), airline);
 										}
 									} else {
 										logger.debug("Exception: Bad wiki link for " + airline.getName() + " from "

@@ -8,6 +8,8 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map.Entry;
 import java.util.Random;
+import java.util.Timer;
+import java.util.TimerTask;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ConcurrentHashMap;
@@ -84,7 +86,9 @@ public class App {
 		// Load the yaml here instead of scraping
 
 		// app.parseLatLong();
-		app.parseLocationServed();
+		// app.parseLocationServed();
+		app.processLocationServed();
+
 		logger.debug("" + app.al.size());
 
 	}
@@ -123,6 +127,8 @@ public class App {
 			// work on them
 			ExecutorService executorService = new ThreadPoolExecutor(13, 25, 0L, TimeUnit.MILLISECONDS, queue);
 			for (int i = 0; i < full_al.size(); i++) {
+			//for (int i = 0; i < 50; i++) {
+
 				boolean submitted = false;
 				while (!submitted) {
 					try {
@@ -151,15 +157,53 @@ public class App {
 		}
 	}
 
+	class LocationServedTimerTask extends TimerTask {
+
+		App app;
+		int i = 0;
+		boolean finished = false;
+
+		public LocationServedTimerTask(App app) {
+			this.app = app;
+		}
+
+		@Override
+		public void run() {
+			if (!finished) {
+				Airports ai = (Airports) al.values().toArray()[i];
+				Airports new_ai = as.parseGeonamesWSLocServ(ai);
+				al.put(new_ai.getIataCode(), new_ai);
+				i++;
+			}
+			if (i >= al.values().size()) {
+				finished = true;
+			}
+		}
+
+		public boolean isFinished() {
+			return finished;
+		}
+	}
+
+	public void processLocationServed() {
+		// run this task as a background/daemon thread
+		TimerTask timerTask = new LocationServedTimerTask(this);
+		Timer timer = new Timer(true);
+		// 5 seconds
+		timer.scheduleAtFixedRate(timerTask, 0, 5 * 1000);
+		// 5 minutes
+		// timer.scheduleAtFixedRate(timerTask, 0, 5*60*1000);
+	}
+
 	public void parseLocationServed() {
-	    Iterator<Entry<String, Airports>> it = al.entrySet().iterator();
-	    int i = 0;
-	    while (it.hasNext()) {
-	    	if(i >= 25){
-	    		break;
-	    	}
-	    	i++;
-	        Entry<String, Airports> pair = it.next();
+		Iterator<Entry<String, Airports>> it = al.entrySet().iterator();
+		int i = 0;
+		while (it.hasNext()) {
+			if (i >= 25) {
+				break;
+			}
+			i++;
+			Entry<String, Airports> pair = it.next();
 			Airports new_ai = as.parseGeonamesWSLocServ(pair.getValue());
 			al.put(new_ai.getIataCode(), new_ai);
 		}
@@ -188,6 +232,9 @@ public class App {
 				fr = new FileReader(locatedFile);
 				YamlReader reader = new YamlReader(fr);
 				al = (ConcurrentHashMap<String, Airports>) reader.read();
+				if(al == null){
+					al = new ConcurrentHashMap<String, Airports>();
+				}
 				reader.close();
 			}
 		} catch (YamlException e) {
