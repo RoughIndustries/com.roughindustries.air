@@ -7,12 +7,14 @@ import java.io.IOException;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map.Entry;
+import java.util.NoSuchElementException;
 import java.util.Random;
 import java.util.Timer;
 import java.util.TimerTask;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentHashMap.KeySetView;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.RejectedExecutionException;
@@ -50,10 +52,12 @@ public class App {
 	 */
 	static GlobalProperties Props = GlobalProperties.getInstance();
 
-	public CopyOnWriteArrayList<Airports> full_al = new CopyOnWriteArrayList<Airports>();
-	public ConcurrentHashMap<String, Airports> al = new ConcurrentHashMap<String, Airports>();
+	public ConcurrentHashMap<String, Airports> full_al = new ConcurrentHashMap<String, Airports>();
+	public ConcurrentHashMap<String, Airports> apl = new ConcurrentHashMap<String, Airports>();
+	public ConcurrentHashMap<String, Airlines> all = new ConcurrentHashMap<String, Airlines>();
 	final static BlockingQueue<Runnable> queue = new ArrayBlockingQueue<>(25);
 	AirportScraper as = new AirportScraper();
+	LocationServedTimerTask timerTask;
 
 	public static void main(String[] args) {
 		App app = new App();
@@ -64,7 +68,7 @@ public class App {
 		// possible. It is not really good for anything else. The
 		// idea is blow through these so that things that need to
 		// be throttled can be.
-		app.parseAirports();
+		// app.parseAirports();
 		// app = null;
 		System.gc();
 		try {
@@ -81,15 +85,23 @@ public class App {
 		}
 
 		// write the results out so we don't have to scrape them in the future
-		app.writeYamlToFile("airports.yml");
+		// app.writeYamlToFile("airports.yml");
 
 		// Load the yaml here instead of scraping
 
 		// app.parseLatLong();
 		// app.parseLocationServed();
 		app.processLocationServed();
+		logger.debug("" + app.apl.size());
 
-		logger.debug("" + app.al.size());
+		while (!app.timerTask.isFinished()) {
+			try {
+				Thread.sleep(60000);
+			} catch (InterruptedException e) {
+				// TODO Auto-generated catch block
+				e.printStackTrace();
+			}
+		}
 
 	}
 
@@ -126,14 +138,19 @@ public class App {
 			// Blow through the airports so that we can gwt them into yaml to
 			// work on them
 			ExecutorService executorService = new ThreadPoolExecutor(13, 25, 0L, TimeUnit.MILLISECONDS, queue);
-			for (int i = 0; i < full_al.size(); i++) {
-			//for (int i = 0; i < 50; i++) {
-
+			// int i = 0;
+			for (String key : full_al.keySet()) {
+				// if(i >= 50){
+				// break;
+				// } else {
+				// i++;
+				// }
 				boolean submitted = false;
 				while (!submitted) {
 					try {
-						Airports airport = full_al.get(i);
-						Runnable call = new AirportPageForAirportInfoParser(i, this);
+						// String key = it.next();
+						Airports airport = full_al.get(key);
+						Runnable call = new AirportPageForAirportInfoParser(airport, this);
 						executorService.execute(call);
 						submitted = true;
 					} catch (RejectedExecutionException ree) {
@@ -151,9 +168,9 @@ public class App {
 	}
 
 	public void parseLatLong() {
-		for (int i = 0; i < al.size(); i++) {
-			Airports new_ai = as.parseAirportPageForLatLong(al.get(i));
-			al.put(new_ai.getIataCode(), new_ai);
+		for (int i = 0; i < apl.size(); i++) {
+			Airports new_ai = as.parseAirportPageForLatLong(apl.get(i));
+			apl.put(new_ai.getIataCode(), new_ai);
 		}
 	}
 
@@ -162,22 +179,28 @@ public class App {
 		App app;
 		int i = 0;
 		boolean finished = false;
+		private Iterator<String> keySet;
 
 		public LocationServedTimerTask(App app) {
 			this.app = app;
+			this.keySet = app.apl.keySet().iterator();
 		}
 
 		@Override
 		public void run() {
-			if (!finished) {
-				Airports ai = (Airports) al.values().toArray()[i];
-				Airports new_ai = as.parseGeonamesWSLocServ(ai);
-				al.put(new_ai.getIataCode(), new_ai);
+			if (keySet.hasNext()) {
+				String key = keySet.next();
+				Airports ai = app.apl.get(key);
+				Airports new_ai = app.as.parseGeonamesWSLocServ(ai);
+				apl.put(new_ai.getIataCode(), new_ai);
 				i++;
-			}
-			if (i >= al.values().size()) {
+			} else {
 				finished = true;
 			}
+			 if(i >= 5){
+			 finished = true;
+			 }
+
 		}
 
 		public boolean isFinished() {
@@ -187,16 +210,16 @@ public class App {
 
 	public void processLocationServed() {
 		// run this task as a background/daemon thread
-		TimerTask timerTask = new LocationServedTimerTask(this);
+		timerTask = new LocationServedTimerTask(this);
 		Timer timer = new Timer(true);
-		// 5 seconds
-		timer.scheduleAtFixedRate(timerTask, 0, 5 * 1000);
+		// ?? seconds
+		timer.scheduleAtFixedRate(timerTask, 0, 10 * 1000);
 		// 5 minutes
 		// timer.scheduleAtFixedRate(timerTask, 0, 5*60*1000);
 	}
 
 	public void parseLocationServed() {
-		Iterator<Entry<String, Airports>> it = al.entrySet().iterator();
+		Iterator<Entry<String, Airports>> it = apl.entrySet().iterator();
 		int i = 0;
 		while (it.hasNext()) {
 			if (i >= 25) {
@@ -205,7 +228,7 @@ public class App {
 			i++;
 			Entry<String, Airports> pair = it.next();
 			Airports new_ai = as.parseGeonamesWSLocServ(pair.getValue());
-			al.put(new_ai.getIataCode(), new_ai);
+			apl.put(new_ai.getIataCode(), new_ai);
 		}
 	}
 
@@ -213,7 +236,11 @@ public class App {
 		try {
 			YamlWriter writer = new YamlWriter(new FileWriter(filename));
 			writer.getConfig().writeConfig.setEscapeUnicode(false);
-			writer.write(al);
+			writer.getConfig().writeConfig.setAutoAnchor(false);
+			writer.getConfig().writeConfig.setUseVerbatimTags(true);
+			// writer.getConfig().writeConfig.setAlwaysWriteClassname(false);
+			// writer.getConfig().writeConfig.setWriteRootElementTags(false);
+			writer.write(apl);
 			writer.close();
 		} catch (YamlException e) {
 			e.printStackTrace();
@@ -231,9 +258,9 @@ public class App {
 			if (locatedFile.exists()) {
 				fr = new FileReader(locatedFile);
 				YamlReader reader = new YamlReader(fr);
-				al = (ConcurrentHashMap<String, Airports>) reader.read();
-				if(al == null){
-					al = new ConcurrentHashMap<String, Airports>();
+				apl = (ConcurrentHashMap<String, Airports>) reader.read();
+				if (apl == null) {
+					apl = new ConcurrentHashMap<String, Airports>();
 				}
 				reader.close();
 			}

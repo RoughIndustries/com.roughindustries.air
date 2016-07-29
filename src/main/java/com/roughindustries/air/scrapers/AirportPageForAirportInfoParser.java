@@ -1,6 +1,7 @@
 package com.roughindustries.air.scrapers;
 
 import java.io.IOException;
+import java.lang.reflect.InvocationTargetException;
 import java.net.URL;
 import java.time.Clock;
 import java.time.Instant;
@@ -9,9 +10,11 @@ import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.Date;
+import java.util.HashMap;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
 
+import org.apache.commons.beanutils.BeanUtils;
 import org.apache.ibatis.session.SqlSession;
 import org.apache.log4j.Logger;
 import org.geonames.FeatureClass;
@@ -51,10 +54,10 @@ public class AirportPageForAirportInfoParser implements Runnable {
 
 	App app;
 
-	private int airport_index;
+	private Airports airport_index;
 
-	public AirportPageForAirportInfoParser(int i, App app) {
-		this.airport_index = i;
+	public AirportPageForAirportInfoParser(Airports airport, App app) {
+		this.airport_index = airport;
 		this.app = app;
 		// this.ai.setInternalAirportId(0);
 	}
@@ -64,7 +67,14 @@ public class AirportPageForAirportInfoParser implements Runnable {
 		boolean quit = false;
 		int max_attempts = 10;
 		int attempts = 0;
-		Airports ai = app.full_al.get(airport_index);
+		Airports ai = new Airports(); 
+		try {
+			BeanUtils.copyProperties(ai, app.full_al.get(airport_index.getIataCode()));
+		} catch (IllegalAccessException e2) {
+			e2.printStackTrace();
+		} catch (InvocationTargetException e2) {
+			e2.printStackTrace();
+		}
 		while (!quit) {
 			try {
 				Document page = null;
@@ -123,20 +133,49 @@ public class AirportPageForAirportInfoParser implements Runnable {
 												if (destination.attr("href").contains("/wiki/")) {
 													href = destination.attr("href");
 													name = destination.text();
-													Document destpage = Jsoup.parse(new URL("https://en.wikipedia.org" + href),
-															10000);
+													Document destpage = Jsoup
+															.parse(new URL("https://en.wikipedia.org" + href), 10000);
 													Elements iata_code = destpage.select(
 															"[href*=/wiki/International_Air_Transport_Association_airport_code] + b");
 													if (iata_code != null & !iata_code.isEmpty()) {
-														//iata = iata_code.text().replaceAll("\\P{L}", " ");
-														Airports airport = new Airports();
-														airport.setIataCode(iata_code.text().replaceAll("\\P{L}", " "));
-														airline.airline_destinations.add(airport.getIataCode());
-														ai.airport_destinations.put(iata, airport);
+														iata = iata_code.get(0).text().replaceAll("\\P{L}", ",");
+														String[] iatas = iata.split(",");
+														for (String temp : iatas) {
+															if (!temp.isEmpty()) {
+																temp = temp.trim();
+																//logger.debug("" + temp);
+																Airports airport = new Airports();
+																try {
+																	BeanUtils.copyProperties(airport, app.full_al.get(temp));
+																	airport.airport_destinations = new HashMap<String, Airports>();
+																	airport.airlines = new HashMap<String, Airlines>();
+																	airport.locationsServed = new ArrayList<LocationsServed>();
+																	airport.setLatitude(null);
+																	airport.setLongitude(null);
+																	airport.setWikiUrl(null);
+																	airport.setName(null);
+																	airport.setIcaoCode(null);
+																	//logger.debug("" + airport.getIataCode());
+																	airline.airline_destinations.put(airport.getIataCode(),
+																			airport);
+																	ai.airport_destinations.put(airport.getIataCode(),
+																			airport);
+//																} catch (IllegalAccessException e2) {
+//																	e2.printStackTrace();
+//																} catch (InvocationTargetException e2) {
+//																	e2.printStackTrace();
+																} catch (Exception e) {
+																	logger.debug("BAD Airport for " + temp + " / "
+																			+ iata + " from " + ai.getName()
+																			+ " flying " + airline.getName());
+																}
+																
+															}
+														}
 													}
 
 												}
-												
+
 											}
 										}
 										if (airline.getName() != null && !airline.getName().isEmpty()) {
@@ -162,7 +201,7 @@ public class AirportPageForAirportInfoParser implements Runnable {
 
 						page = null;
 
-						app.al.put(ai.getIataCode(), ai);
+						app.apl.put(ai.getIataCode(), ai);
 						logger.debug(ai.getIataCode() + " " + ai.getName() + " Airport Page Processed");
 					} else {
 						// ai.setIsAd(false);

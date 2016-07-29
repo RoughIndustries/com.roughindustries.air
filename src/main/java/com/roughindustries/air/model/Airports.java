@@ -220,5 +220,29 @@ public class Airports {
 		this.locationsServedLastUpdate = locationsServedLastUpdate;
 	}
 
+	public List<LocationsServed> getLocationsServed() {
+		return locationsServed;
+	}
+
+	public void setLocationsServed(List<LocationsServed> locationsServed) {
+		this.locationsServed = locationsServed;
+	}
+
+	public Map<String, Airlines> getAirlines() {
+		return airlines;
+	}
+
+	public void setAirlines(Map<String, Airlines> airlines) {
+		this.airlines = airlines;
+	}
+
+	public Map<String, Airports> getAirport_destinations() {
+		return airport_destinations;
+	}
+
+	public void setAirport_destinations(Map<String, Airports> airport_destinations) {
+		this.airport_destinations = airport_destinations;
+	}
+
 
 }

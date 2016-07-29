@@ -8,6 +8,7 @@ import java.net.URL;
 import java.time.Clock;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 
 import org.apache.log4j.Logger;
@@ -73,27 +74,34 @@ public class AirportScraper {
 	 * @param airports
 	 * @return
 	 */
-	public CopyOnWriteArrayList<Airports> parseAirportsElementList(Elements airports) {
-		CopyOnWriteArrayList<Airports> al = new CopyOnWriteArrayList<Airports>();
+	public ConcurrentHashMap<String, Airports> parseAirportsElementList(Elements airports) {
+		ConcurrentHashMap<String, Airports> al = new ConcurrentHashMap<String, Airports>();
 		int i = 0;
 		for (Element airport : airports) {
 			Elements td_list = airport.select("td");
 			if (td_list.get(2).getElementsByAttributeValueContaining("href", "redlink").isEmpty()) {
 				Airports ia = new Airports();
-				ia.setIataCode(td_list.get(0).text().replaceAll("\\P{L}", " "));
-				ia.setIcaoCode(td_list.get(1).text().replaceAll("\\P{L}", " "));
-				ia.setName(td_list.get(2).getElementsByAttribute("href").text().replaceAll("\\P{L}", " "));
-				if (td_list.get(2).getElementsByAttributeValueContaining("href", "redlink").isEmpty()) {
-					if (!td_list.get(2).getElementsByAttributeValueContaining("href", "/wiki/").isEmpty()) {
-						ia.setWikiUrl(td_list.get(2).getElementsByAttribute("href").attr("href"));
+				String iata = td_list.get(0).text().replaceAll("\\P{L}", "").trim();
+				String name = td_list.get(2).getElementsByAttribute("href").text().replaceAll("\\P{L}", " ");
+				if (iata != null) {
+					ia.setIataCode(iata);
+					ia.setIcaoCode(td_list.get(1).text().replaceAll("\\P{L}", " "));
+					ia.setName(name);
+					if (td_list.get(2).getElementsByAttributeValueContaining("href", "redlink").isEmpty()) {
+						if (!td_list.get(2).getElementsByAttributeValueContaining("href", "/wiki/").isEmpty()) {
+							ia.setWikiUrl(td_list.get(2).getElementsByAttribute("href").attr("href"));
+						} else {
+							logger.debug("Parsing Exception: Bad wiki link for " + ia.getIataCode());
+						}
 					} else {
-						logger.debug("Parsing Exception: Bad wiki link for " + ia.getIataCode());
+						logger.debug("Parsing Exception: RedLine wiki link for " + ia.getIataCode());
 					}
+					al.put(iata, ia);
+					logger.debug(
+							ia.getIataCode() + " " + ia.getIcaoCode() + " " + ia.getName() + " " + ia.getWikiUrl());
 				} else {
-					logger.debug("Parsing Exception: RedLine wiki link for " + ia.getIataCode());
+					logger.debug("Parsing Exception: Bad IATA " + name);
 				}
-				al.add(ia);
-				logger.debug(ia.getIataCode() + " " + ia.getIcaoCode() + " " + ia.getName() + " " + ia.getWikiUrl());
 			}
 		}
 		return al;
