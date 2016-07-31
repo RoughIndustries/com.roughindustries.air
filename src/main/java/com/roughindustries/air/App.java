@@ -62,13 +62,13 @@ public class App {
 	public static void main(String[] args) {
 		App app = new App();
 		// read the yaml in
-		app.readYamlToFile("airports.yml");
+		app.readYamlFromFile("airports.yml");
 
 		// This method is designed to get the airports as quick as
 		// possible. It is not really good for anything else. The
 		// idea is blow through these so that things that need to
 		// be throttled can be.
-		// app.parseAirports();
+		//app.parseAirports();
 		// app = null;
 		System.gc();
 		try {
@@ -85,7 +85,7 @@ public class App {
 		}
 
 		// write the results out so we don't have to scrape them in the future
-		// app.writeYamlToFile("airports.yml");
+		//app.writeYamlToFile("airports.yml");
 
 		// Load the yaml here instead of scraping
 
@@ -197,8 +197,10 @@ public class App {
 			} else {
 				finished = true;
 			}
-			 if(i >= 5){
-			 finished = true;
+			if(i%250 == 0){
+			//if(i>= 5){
+				app.writeYamlToFile("airportsWithLocServ.yml");
+				 //finished = true;
 			 }
 
 		}
@@ -213,7 +215,7 @@ public class App {
 		timerTask = new LocationServedTimerTask(this);
 		Timer timer = new Timer(true);
 		// ?? seconds
-		timer.scheduleAtFixedRate(timerTask, 0, 10 * 1000);
+		timer.scheduleAtFixedRate(timerTask, 0, 20 * 1000);
 		// 5 minutes
 		// timer.scheduleAtFixedRate(timerTask, 0, 5*60*1000);
 	}
@@ -250,7 +252,7 @@ public class App {
 	}
 
 	@SuppressWarnings("unchecked")
-	public void readYamlToFile(String filename) {
+	public void readYamlFromFile(String filename) {
 		try {
 			FileReader fr = null;
 

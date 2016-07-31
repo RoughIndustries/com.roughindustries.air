@@ -1,10 +1,10 @@
 <?xml version="1.0" encoding="UTF-8"?><project-modules id="moduleCoreId" project-version="1.5.0">
-    <wb-module deploy-name="air">
+    <wb-module deploy-name="RIAir_JavaScraper">
         <wb-resource deploy-path="/" source-path="/WebContent" tag="defaultRootSource"/>
         <wb-resource deploy-path="/WEB-INF/classes" source-path="/src/main/java"/>
         <wb-resource deploy-path="/WEB-INF/classes" source-path="/src/test/java"/>
         <wb-resource deploy-path="/WEB-INF/classes" source-path="/resources"/>
-        <property name="context-root" value="air"/>
-        <property name="java-output-path" value="/air/target/classes"/>
+        <property name="java-output-path" value="/RIAir_JavaScraper/target/classes"/>
+        <property name="context-root" value="RIAir_JavaScraper"/>
     </wb-module>
 </project-modules>
